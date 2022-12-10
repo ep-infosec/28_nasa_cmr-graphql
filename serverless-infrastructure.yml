@@ -1,0 +1,20 @@
+service: graphql-infrastructure
+
+provider:
+  name: aws
+  runtime: nodejs16.x
+  region: us-east-1
+  stage: ${opt:stage, 'dev'}
+  vpc:
+    securityGroupIds:
+      - Ref: GraphQLLambdaSecurityGroup
+    subnetIds:
+      - ${env:SUBNET_ID_A}
+      - ${env:SUBNET_ID_B}
+
+  role: GraphQLApplicationRole
+
+#
+# AWS Infrastructure Resources
+#
+resources: ${file(./serverless-infrastructure-resources.yml)}

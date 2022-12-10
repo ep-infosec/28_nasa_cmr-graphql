@@ -1,0 +1,98 @@
+type Service {
+  "Words or phrases to further describe the service."
+  ancillaryKeywords: [String]
+  "The unique concept id assigned to the service."
+  conceptId: String!
+  "This is the contact groups of the service."
+  contactGroups: JSON
+  "This is the contact persons of the service."
+  contactPersons: JSON
+  "A brief description of the service."
+  description: String
+  "The long name of the service, software, or tool."
+  longName: String
+  "The name of the service, software, or tool."
+  name: String
+  "The native id to set on the service."
+  nativeId: String!
+  "This element contains important information about the universal resource locator (URL) for the service."
+  relatedUrls: JSON
+  "Allows for the specification of Earth Science Service keywords that are representative of the service."
+  serviceKeywords: JSON
+  "Service options, data transformations and output formats."
+  serviceOptions: JSON
+  "The service provider, or organization, or institution responsible for developing, archiving, and/or distributing the service."
+  serviceOrganizations: JSON
+  "List of input projection names supported by the service."
+  supportedInputProjections: JSON
+  "List of output projection names supported by the service."
+  supportedOutputProjections: JSON
+  "List of format name combinations which explicitly state which re-formatting options are available."
+  supportedReformattings: JSON
+  "The type of the service."
+  type: String
+  "Represents the Internet site where you can directly access the back-end service."
+  url: JSON
+
+  collections (
+    "Collections query parameters"
+    params: CollectionsInput
+    "The unique concept id assigned to the service."
+    conceptId: [String] @deprecated(reason: "Use `params.conceptId`")
+    "The number of collections requested by the user."
+    limit: Int @deprecated(reason: "Use `params.limit`")
+    "Zero based offset of individual results."
+    offset: Int @deprecated(reason: "Use `params.offset`")
+  ): CollectionList
+}
+
+type ServiceList {
+  "The number of hits for a given search."
+  count: Int
+  "Cursor that points to the a specific position in a list of requested records."
+  cursor: String
+  "The list of service search results."
+  items: [Service]
+}
+
+input ServicesInput {
+  "The unique concept id assigned to the service."
+  conceptId: [String]
+  "Cursor that points to the a specific position in a list of requested records."
+  cursor: String
+  "The number of services requested by the user."
+  limit: Int
+  "Zero based offset of individual results."
+  offset: Int
+  "The type of the service."
+  type: String
+}
+
+input ServiceInput {
+  "The unique concept id assigned to the service."
+  conceptId: String!
+}
+
+type Query {
+  services (
+    "Services query parameters"
+    params: ServicesInput
+    "The unique concept id assigned to the service."
+    conceptId: [String] @deprecated(reason: "Use `params.conceptId`")
+    "Cursor that points to the a specific position in a list of requested records."
+    cursor: String @deprecated(reason: "Use `params.cursor`")
+    "The number of servies requested by the user."
+    limit: Int @deprecated(reason: "Use `params.limit`")
+    "Zero based offset of individual results."
+    offset: Int @deprecated(reason: "Use `params.offset`")
+    "The type of the service."
+    type: String @deprecated(reason: "Use `params.type`")
+  ): ServiceList!
+
+  service (
+    "Service query parameters"
+    params: ServiceInput
+    "The unique concept id assigned to the service."
+    conceptId: String @deprecated(reason: "Use `params.conceptId`")
+  ): Service
+}

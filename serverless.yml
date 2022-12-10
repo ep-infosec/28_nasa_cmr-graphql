@@ -1,0 +1,182 @@
+service: graphql
+
+provider:
+  name: aws
+  runtime: nodejs16.x
+  region: us-east-1
+  stage: ${opt:stage, 'dev'}
+  endpointType: PRIVATE
+  memorySize: 512
+
+  environment:
+    cmrRootUrl: ${self:custom.variables.cmrRootUrl}
+    graphdbHost: ${self:custom.variables.graphdbHost}
+    graphdbPort: ${self:custom.variables.graphdbPort}
+    graphdbPath: ${self:custom.variables.graphdbPath}
+    mmtRootUrl: ${self:custom.variables.mmtRootUrl}
+    draftMmtRootUrl: ${self:custom.variables.draftMmtRootUrl}
+    ursRootUrl: ${self:custom.variables.ursRootUrl}
+    edlClientId: ${self:custom.variables.edlClientId}
+    edlKeyId: ${self:custom.variables.edlKeyId}
+    edlJwk: ${self:custom.variables.edlJwk}
+    dmmtSslCert: ${self:custom.variables.dmmtSslCert}
+
+    # Timeout for lambda
+    lambdaTimeout: ${env:LAMBDA_TIMEOUT, '30'}
+
+    # Pinned UMM versions
+    ummCollectionVersion: '1.17.0'
+    ummGranuleVersion: '1.5'
+    ummServiceVersion: '1.3.4'
+    ummSubscriptionVersion: '1.1'
+    ummToolVersion: '1.1'
+    ummVariableVersion: '1.7'
+
+  vpc:
+    securityGroupIds:
+      - Fn::ImportValue: ${self:provider.stage}-GraphQLLambdaSecurityGroup
+    subnetIds:
+      - ${env:SUBNET_ID_A, 'subnetIdA'}
+      - ${env:SUBNET_ID_B, 'subnetIdB'}
+
+  iam:
+    role:
+      Fn::ImportValue: ${self:provider.stage}-GraphQLApplicationRole
+
+# Package each lambda into individual zip files. This reduces the size of
+# each lambda but increases the complexity of the compilation process slightly
+package:
+  individually: true
+
+plugins:
+  - serverless-webpack
+  - serverless-offline
+  - serverless-plugin-log-subscription
+
+functions:
+  graphql:
+    handler: src/graphql/handler.default
+    timeout: ${env:LAMBDA_TIMEOUT, '30'}
+    events:
+    - http:
+        path: api
+        method: post
+        cors:
+          origin: '*'
+          headers:
+            - Client-Id
+            - Content-Type
+            - X-Request-Id
+    - http:
+        path: api
+        method: get
+        cors: true
+
+  cloudfrontToCloudwatch:
+    handler: src/cloudfrontToCloudwatch/handler.default
+    timeout: 300
+    role: IamRoleCustomResourcesLambdaExecution
+    events:
+      - s3:
+          bucket: ${env:CLOUDFRONT_BUCKET_NAME, ''}
+          event: s3:ObjectCreated:*
+          existing: true
+          rules:
+            - suffix: .gz
+            - prefix:
+                Fn::Join: [
+                  "/", [
+                    "cloudfront/AWSLogs",
+                    {
+                      "Ref": "AWS::AccountId"
+                    },
+                    "${self:provider.region}/graphql_apigw/"
+                  ]
+                ]
+
+resources:
+  Resources:
+    # This role must not be changed -- if it is removed Serverless will attempt to automatically
+    # recreate it and deployments will fail because our permissions boundary does not allow for
+    # creation of roles. This role is used specifically for S3 Lambda triggers that use existing
+    # buckets, which is what we're using for forwarding cloudfront logs to Splunk.
+    IamRoleCustomResourcesLambdaExecution:
+      Type: AWS::IAM::Role
+      Properties:
+        ManagedPolicyArns:
+          - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
+        PermissionsBoundary:
+          Fn::Join: [
+            "", [
+              "arn:aws:iam::",
+              {
+                "Ref": "AWS::AccountId"
+              },
+              ":policy/NGAPShRoleBoundary"
+            ]
+          ]
+        AssumeRolePolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Principal:
+                Service:
+                  - lambda.amazonaws.com
+              Action: sts:AssumeRole
+
+    S3CloudfrontLogToCloudwatchPolicy:
+      Type: AWS::IAM::Policy
+      Properties:
+        PolicyDocument:
+          Version: "2012-10-17"
+          Statement:
+            -
+              Action:
+                - "s3:GetBucketLocation"
+                - "s3:ListBucket"
+                - "s3:ListAllMyBuckets"
+                - "s3:GetObject"
+              Effect: "Allow"
+              Resource: "*"
+        PolicyName: ${self:provider.stage}-S3CloudfrontLogToCloudwatchPolicy
+        Roles:
+          - Ref: IamRoleCustomResourcesLambdaExecution
+
+configValidationMode: error
+
+custom:
+  siteName: graphql-${self:provider.stage}
+
+  variables:
+    # Default values for environment variables used to set environment variables
+    cmrRootUrl: ${env:CMR_ROOT_URL, 'https://cmr.earthdata.nasa.gov'}
+    graphdbHost: ${env:GRAPHDB_HOST, 'http://localhost'}
+    graphdbPort: ${env:GRAPHDB_PORT, '8182'}
+    graphdbPath: ${env:GRAPHDB_PATH, 'gremlin'}
+    mmtRootUrl: ${env:MMT_ROOT_URL, 'https://mmt.earthdata.nasa.gov'}
+    draftMmtRootUrl: ${env:DRAFT_MMT_ROOT_URL, 'https://draftmmt.earthdata.nasa.gov'}
+    ursRootUrl: ${env:URS_ROOT_URL, 'https://urs.earthdata.nasa.gov'}
+    edlClientId: ${env:EDL_CLIENT_ID, ''}
+    edlKeyId: ${env:EDL_KEY_ID, ''}
+    edlJwk: ${env:EDL_JWK, ''}
+    dmmtSslCert: ${env:DMMT_SSL_CERT, ''}
+
+  # Default is 3000 so to avoid conflicts with other applications we'll define a new port
+  serverless-offline:
+    httpPort: 3013
+    lambdaPort: 3014
+    reloadHandler: true
+    # Uncomment useInProcess to enable in-process run mode
+    # https://github.com/dherault/serverless-offline#run-modes
+    # useInProcess: true
+
+  # Serverless Webpack configurations
+  webpack:
+    includeModules: true
+    packager: 'npm'
+    excludeFiles: src/**/*.test.js
+
+  # Forward logs to Splunk
+  logSubscription:
+    enabled: true
+    destinationArn: ${env:LOG_DESTINATION_ARN, ''}

@@ -1,0 +1,22 @@
+{
+  "sharedKeys": [
+    "conceptId",
+    "longName",
+    "name"
+  ],
+  "ummKeyMappings": {
+    "conceptId": "meta.concept-id",
+    "dataType": "umm.DataType",
+    "definition": "umm.Definition",
+    "dimensions": "umm.Dimensions",
+    "longName": "umm.LongName",
+    "measurementIdentifiers": "umm.MeasurementIdentifiers",
+    "name": "umm.Name",
+    "nativeId": "meta.native-id",
+    "offset": "umm.Offset",
+    "scale": "umm.Scale",
+    "scienceKeywords": "umm.ScienceKeywords",
+    "units": "umm.Units",
+    "variableType": "umm.VariableType"
+  }
+}
